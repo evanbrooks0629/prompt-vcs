@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Play, Save, ThumbsUp, ThumbsDown, Plus, Copy, RotateCcw, ChevronDown, ChevronRight, Scale } from "lucide-react"
+import { Play, Save, ThumbsUp, ThumbsDown, Copy, RotateCcw, ChevronDown, ChevronRight, Scale } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
@@ -23,15 +23,16 @@ import {
 } from "@/components/ui/dialog"
 import { NotificationContainer } from "@/components/ui/notification"
 import { useNotifications } from "@/hooks/use-notifications"
-
-import type { PromptVersion, TestResult } from "./main-app"
+import { TestCase } from "./test-case-panel"
+import type { PromptVersion, TestResult, Prompt } from "./main-app"
 
 interface PromptEditorProps {
+  basePrompt: Prompt | null
   version: PromptVersion | null
   onUpdateVersion: (version: PromptVersion) => void
 }
 
-export function PromptEditor({ version, onUpdateVersion }: PromptEditorProps) {
+export function PromptEditor({ basePrompt, version, onUpdateVersion }: PromptEditorProps) {
   const [prompt, setPrompt] = useState("")
   const [systemMessage, setSystemMessage] = useState("")
   const [temperature, setTemperature] = useState(0.7)
@@ -45,6 +46,12 @@ export function PromptEditor({ version, onUpdateVersion }: PromptEditorProps) {
   const [isCommitDialogOpen, setIsCommitDialogOpen] = useState(false)
   const [copiedInputIndex, setCopiedInputIndex] = useState<number | null>(null)
   const [expandedTests, setExpandedTests] = useState<Set<number>>(new Set())
+  const [testCases, setTestCases] = useState<TestCase[]>([])
+  const [selectedTestCase, setSelectedTestCase] = useState<string | null>(null)
+  const [isComparing, setIsComparing] = useState(false)
+  const [comparisonVersion, setComparisonVersion] = useState<PromptVersion | null>(null)
+  const [comparisonOutput, setComparisonOutput] = useState("")
+  const [isRunningComparison, setIsRunningComparison] = useState(false)
 
   const { notifications, addNotification } = useNotifications()
 
@@ -56,8 +63,31 @@ export function PromptEditor({ version, onUpdateVersion }: PromptEditorProps) {
       setMaxTokens(version.parameters.maxTokens)
       setTopP(version.parameters.topP)
       setModel(version.parameters.model)
+      setCurrentOutput("")
+      setTestInput("")
     }
   }, [version])
+
+  useEffect(() => {
+    if (basePrompt) {
+      setTestCases(basePrompt.testCases)
+    }
+  }, [basePrompt])
+
+  useEffect(() => {
+    if (selectedTestCase) {
+      const testCase = testCases.find(tc => tc.id === selectedTestCase)
+      if (testCase && testInput !== testCase.input) {
+        setSelectedTestCase(null)
+      }
+    }
+    
+    // Check if current testInput matches any test case input
+    const matchingTestCase = testCases.find(tc => tc.input === testInput)
+    if (matchingTestCase) {
+      setSelectedTestCase(matchingTestCase.id)
+    }
+  }, [testInput, selectedTestCase, testCases])
 
   if (!version) {
     return (
@@ -262,18 +292,18 @@ export function PromptEditor({ version, onUpdateVersion }: PromptEditorProps) {
     setModel(version.parameters.model)
   }
 
-  const addTestCase = () => {
-    if (!testInput.trim()) return
-    // This would add a saved test case for reuse
-    // TODO: Implement this
-    // should have a set of test-inputs for each prompt
-    addNotification({
-      title: "Test Case Saved",
-      message: "You can now reuse this input for testing.",
-      type: "success",
-      duration: 3000,
-    })
-  }
+  // const addTestCase = () => {
+  //   if (!testInput.trim()) return
+  //   // This would add a saved test case for reuse
+  //   // TODO: Implement this
+  //   // should have a set of test-inputs for each prompt
+  //   addNotification({
+  //     title: "Test Case Saved",
+  //     message: "You can now reuse this input for testing.",
+  //     type: "success",
+  //     duration: 3000,
+  //   })
+  // }
 
   const copyInput = (input: string, index: number) => {
     navigator.clipboard.writeText(input)
@@ -289,6 +319,131 @@ export function PromptEditor({ version, onUpdateVersion }: PromptEditorProps) {
       newExpanded.add(index)
     }
     setExpandedTests(newExpanded)
+  }
+
+  const selectTestCase = (testCaseId: string) => {
+    const testCase = testCases.find(tc => tc.id === testCaseId)
+    if (testCase) {
+      setTestInput(testCase.input)
+      setSelectedTestCase(testCaseId)
+    }
+  }
+
+  const compareOutput = () => {
+    if (!basePrompt) return;
+    setIsComparing(true);
+    setComparisonVersion(null);
+    setComparisonOutput("");
+  }
+
+  const runComparisonPrompt = async (versionToCompare: PromptVersion) => {
+    if (!testInput.trim()) {
+      addNotification({
+        title: "Input Required",
+        message: "Please enter a test input to run the comparison.",
+        type: "error",
+        duration: 3000,
+      })
+      return
+    }
+
+    setIsRunningComparison(true)
+
+    try {
+      // Get API settings from localStorage
+      const apiSettings = JSON.parse(localStorage.getItem("api_settings") || "{}")
+      const isOpenAI = versionToCompare.parameters.model.startsWith("gpt")
+      const apiKey = apiSettings[isOpenAI ? "openai" : "anthropic"]
+
+      if (!apiKey) {
+        addNotification({
+          title: "API Key Missing",
+          message: "Please configure your API key in settings.",
+          type: "error",
+          duration: 3000,
+        })
+        setIsRunningComparison(false)
+        return
+      }
+
+      let response
+      
+      if (isOpenAI) {
+        // OpenAI API call
+        const messages = []
+        if (versionToCompare.systemMessage.trim()) {
+          messages.push({ role: "system", content: versionToCompare.systemMessage })
+        }
+        messages.push({ role: "user", content: `${versionToCompare.prompt}\n\n${testInput}` })
+
+        const openAIResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${apiKey}`
+          },
+          body: JSON.stringify({
+            model: versionToCompare.parameters.model,
+            messages: messages,
+            temperature: versionToCompare.parameters.temperature,
+            max_tokens: versionToCompare.parameters.maxTokens,
+            top_p: versionToCompare.parameters.topP
+          })
+        })
+
+        if (!openAIResponse.ok) {
+          const error = await openAIResponse.json()
+          throw new Error(error.error?.message || "OpenAI API request failed")
+        }
+
+        const data = await openAIResponse.json()
+        response = data.choices[0]?.message?.content || "No response generated"
+      } else {
+        // Anthropic API call
+        const anthropicResponse = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": apiKey,
+            "anthropic-version": "2023-06-01"
+          },
+          body: JSON.stringify({
+            model: versionToCompare.parameters.model,
+            max_tokens: versionToCompare.parameters.maxTokens,
+            temperature: versionToCompare.parameters.temperature,
+            top_p: versionToCompare.parameters.topP,
+            system: versionToCompare.systemMessage.trim() || undefined,
+            messages: [
+              {
+                role: "user",
+                content: `${versionToCompare.prompt}\n\n${testInput}`
+              }
+            ]
+          })
+        })
+
+        if (!anthropicResponse.ok) {
+          const error = await anthropicResponse.json()
+          throw new Error(error.error?.message || "Anthropic API request failed")
+        }
+
+        const data = await anthropicResponse.json()
+        response = data.content[0]?.text || "No response generated"
+      }
+
+      setComparisonOutput(response)
+      setComparisonVersion(versionToCompare)
+    } catch (error) {
+      console.error("API Error:", error)
+      addNotification({
+        title: "Error",
+        message: `Error: ${error instanceof Error ? error.message : "Failed to run comparison. Please check your API settings."}`,
+        type: "error",
+        duration: 3000,
+      })
+    } finally {
+      setIsRunningComparison(false)
+    }
   }
 
   return (
@@ -421,7 +576,7 @@ export function PromptEditor({ version, onUpdateVersion }: PromptEditorProps) {
                     />
                   </div>
 
-                  <div className="space-y-2">
+                  <div className="space-y-2 pb-2">
                     <Label>Top P: {topP}</Label>
                     <Slider
                       value={[topP]}
@@ -440,25 +595,46 @@ export function PromptEditor({ version, onUpdateVersion }: PromptEditorProps) {
           <TabsContent value="test" className="flex-1 overflow-hidden m-4 mt-2">
             <div className="h-full flex flex-col space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="test-input">Test Input</Label>
                 <div className="flex gap-2">
-                  <Textarea
-                    id="test-input"
-                    placeholder="Enter test input to evaluate your prompt..."
-                    value={testInput}
-                    onChange={(e) => setTestInput(e.target.value)}
-                    className="flex-1"
-                  />
-                  <div className="flex flex-col gap-2">
-                    <Button onClick={runPrompt} disabled={isRunning || !testInput.trim()}>
+                  <div className="flex-1 space-y-2">
+                    <Label htmlFor="test-input">Test Input</Label>
+                    <Textarea
+                      id="test-input"
+                      placeholder="Enter test input to evaluate your prompt..."
+                      value={testInput}
+                      onChange={(e) => setTestInput(e.target.value)}
+                      className="w-full h-28 mt-2"
+                      />
+                  </div>
+                  <div className="flex-1">
+                    {testCases.length > 0 && (
+                      <div className="">
+                        <Label htmlFor="test-cases">Test Cases</Label>
+                        <div className="flex flex-col gap-2 mt-2" id="test-cases">
+                          {testCases.map((testCase) => (
+                            <Button
+                              key={testCase.id}
+                              variant={selectedTestCase === testCase.id ? "default" : "outline"}
+                              size="sm"
+                              onClick={() => selectTestCase(testCase.id)}
+                              className="text-xs w-full justify-start"
+                            >
+                              {testCase.name}
+                            </Button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex flex-col gap-2 mt-5.5">
+                    <Button size="sm" onClick={runPrompt} disabled={isRunning || !testInput.trim()}>
                       <Play className="h-4 w-4 mr-2" />
                       {isRunning ? "Running..." : "Run"}
                     </Button>
-                    <Button variant="outline" size="sm" onClick={addTestCase} disabled={!testInput.trim()}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
                   </div>
                 </div>
+                
+                
               </div>
 
               {currentOutput && (
@@ -467,7 +643,7 @@ export function PromptEditor({ version, onUpdateVersion }: PromptEditorProps) {
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-lg">Output</CardTitle>
                       <div className="flex gap-2">
-                        <Button size="sm" variant="outline" onClick={() => {}}>
+                        <Button size="sm" variant="outline" onClick={compareOutput}>
                           <Scale className="h-4 w-4 mr-2" />
                           Compare
                         </Button>
@@ -489,10 +665,79 @@ export function PromptEditor({ version, onUpdateVersion }: PromptEditorProps) {
                       </div>
                     </div>
                   </CardHeader>
-                  <CardContent>
-                    <ScrollArea className="h-[300px]">
-                      <pre className="whitespace-pre-wrap text-sm">{currentOutput}</pre>
-                    </ScrollArea>
+                  <CardContent className="flex gap-4">
+                    <div className={`flex-1 ${isComparing ? 'border-r pr-4' : ''}`}>
+                      {isComparing ? (
+                        <div>
+                          <div className="flex items-center justify-between mb-4">
+                            <div>
+                              <h3 className="text-sm font-medium">{version.branch}</h3>
+                              <p className="text-xs text-muted-foreground">{version.commitMessage}</p>
+                            </div>
+                          </div>
+                          <ScrollArea className="h-[300px]">
+                            <pre className="whitespace-pre-wrap text-sm">{currentOutput}</pre>
+                          </ScrollArea>
+                        </div>
+                      ) : (
+                        <ScrollArea className="h-[300px]">
+                          <pre className="whitespace-pre-wrap text-sm">{currentOutput}</pre>
+                        </ScrollArea>
+                      )}
+                    </div>
+
+                    {isComparing && (
+                      <div className="flex-1 pl-4">
+                        {!comparisonVersion ? (
+                          <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                              <h3 className="text-sm font-medium">Select Version to Compare</h3>
+                              <Button size="sm" variant="ghost" onClick={() => setIsComparing(false)}>
+                                Back
+                              </Button>
+                            </div>
+                            <div className="space-y-2">
+                              {basePrompt && basePrompt.versions
+                                .filter(v => v.id !== version.id)
+                                .map((v) => (
+                                  <Button
+                                    key={v.id}
+                                    variant="outline"
+                                    onClick={() => runComparisonPrompt(v)}
+                                    className="w-full justify-start items-start text-left flex flex-col gap-1 py-2 px-3 whitespace-normal h-auto"
+                                    disabled={isRunningComparison}
+                                  >
+                                    <div className="flex flex-col gap-1 w-full">
+                                      <div className="font-medium break-words">{v.branch}</div>
+                                    </div>
+                                    <div className="flex flex-col gap-1 w-full">
+                                      <div className="text-sm text-muted-foreground break-words">{v.commitMessage}</div>
+                                    </div>
+                                  </Button>
+                                ))}
+                            </div>
+                          </div>
+                        ) : (
+                          <div>
+                            <div className="flex items-center justify-between mb-4">
+                              <div>
+                                <h3 className="text-sm font-medium">{comparisonVersion.branch}</h3>
+                                <p className="text-xs text-muted-foreground">{comparisonVersion.commitMessage}</p>
+                              </div>
+                              <Button size="sm" variant="ghost" onClick={() => {
+                                setComparisonVersion(null);
+                                setComparisonOutput("");
+                              }}>
+                                Back
+                              </Button>
+                            </div>
+                            <ScrollArea className="h-[300px]">
+                              <pre className="whitespace-pre-wrap text-sm">{comparisonOutput}</pre>
+                            </ScrollArea>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}

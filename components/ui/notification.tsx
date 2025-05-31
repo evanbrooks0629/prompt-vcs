@@ -65,7 +65,7 @@ export function Notification({
   return (
     <div
       className={cn(
-        "fixed bottom-4 right-4 z-50 w-96 max-w-sm rounded-lg border p-4 shadow-lg transition-all duration-300 ease-in-out",
+        "fixed bottom-14 right-4 z-50 w-96 max-w-sm rounded-lg border p-4 shadow-lg transition-all duration-300 ease-in-out",
         variants[type],
         isVisible 
           ? "translate-x-0 opacity-100" 

@@ -8,6 +8,7 @@ import { PromptEditor } from "./prompt-editor"
 import { Settings } from "./settings"
 import { UserData } from "./google-login"
 import { SidebarProvider } from "@/components/ui/sidebar"
+import { TestCasePanel, TestCase } from "./test-case-panel"
 
 interface MainAppProps {
   user: UserData | null
@@ -20,6 +21,7 @@ export interface Prompt {
   lastAccessed: Date
   versions: PromptVersion[]
   currentBranch: string
+  testCases: TestCase[]
 }
 
 export interface PromptVersion {
@@ -106,6 +108,7 @@ export function MainApp({ user, onLogout }: MainAppProps) {
           timestamp: new Date(),
         },
       ],
+      testCases: []
     }
 
     const updatedPrompts = [...prompts, newPrompt]
@@ -235,6 +238,79 @@ export function MainApp({ user, onLogout }: MainAppProps) {
     }
   }
 
+  const addTestCase = (promptId: string, updatedTestCase: TestCase) => {
+    const newTestCase: TestCase = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: updatedTestCase.name,
+      input: updatedTestCase.input
+    }
+
+    const updatedPrompts = prompts.map((prompt) => {
+      if (prompt.id === promptId) {
+        return {
+          ...prompt,
+          testCases: [...prompt.testCases, newTestCase],
+          lastAccessed: new Date(),
+        }
+      }
+      return prompt
+    })
+
+    savePrompts(updatedPrompts)
+    
+    // Update selected prompt if it's the one being modified
+    if (selectedPrompt && selectedPrompt.id === promptId) {
+      const updatedPrompt = updatedPrompts.find(p => p.id === promptId)!
+      setSelectedPrompt(updatedPrompt)
+    }
+  }
+
+  const updateTestCase = (promptId: string, updatedTestCase: TestCase) => {
+    const updatedPrompts = prompts.map((prompt) => {
+      if (prompt.id === promptId) {
+        return {
+          ...prompt,
+          testCases: prompt.testCases.map((testCase) =>
+            testCase.id === updatedTestCase.id
+              ? updatedTestCase
+              : testCase
+          ),
+          lastAccessed: new Date(),
+        }
+      }
+      return prompt
+    })
+
+    savePrompts(updatedPrompts)
+    
+    // Update selected prompt if it's the one being modified
+    if (selectedPrompt && selectedPrompt.id === promptId) {
+      const updatedPrompt = updatedPrompts.find(p => p.id === promptId)!
+      setSelectedPrompt(updatedPrompt)
+    }
+  }
+
+  const deleteTestCase = (promptId: string, selectedTestCase: TestCase) => {
+    const updatedPrompts = prompts.map((prompt) => {
+      if (prompt.id === promptId) {
+        return {
+          ...prompt,
+          testCases: prompt.testCases.filter((testCase) => testCase.id !== selectedTestCase.id),
+          lastAccessed: new Date(),
+        }
+      }
+      return prompt
+    })
+
+    savePrompts(updatedPrompts)
+    
+    // Update selected prompt if it's the one being modified
+    if (selectedPrompt && selectedPrompt.id === promptId) {
+      const updatedPrompt = updatedPrompts.find(p => p.id === promptId)!
+      setSelectedPrompt(updatedPrompt)
+    }
+  }
+
   if (!user) {
     return (
       <div className="flex h-screen items-center justify-center bg-background">
@@ -266,7 +342,7 @@ export function MainApp({ user, onLogout }: MainAppProps) {
           <TopBar selectedPrompt={selectedPrompt} onCreatePrompt={createNewPrompt} onDeletePrompt={deletePrompt} />
 
           <div className="flex-1 flex min-w-0">
-            <div className="w-100 border-r bg-muted/30 flex-shrink-0">
+            <div className="w-100 border-r bg-muted/30 flex-shrink-0 pb-15">
               <VersionTree
                 prompt={selectedPrompt}
                 selectedVersion={selectedVersion}
@@ -277,11 +353,23 @@ export function MainApp({ user, onLogout }: MainAppProps) {
               />
             </div>
 
-            <div className="flex-1 min-w-0">
-              <PromptEditor version={selectedVersion} onUpdateVersion={updatePromptVersion} />
+            <div className="flex-1 min-w-0 mb-15">
+              <PromptEditor 
+                basePrompt={selectedPrompt}
+                version={selectedVersion} 
+                onUpdateVersion={updatePromptVersion} 
+              />
             </div>
           </div>
         </div>
+
+        {/* Test Case Panel - overlays at the bottom */}
+        <TestCasePanel 
+          prompt={selectedPrompt} 
+          onAddTestCase={addTestCase}
+          onUpdateTestCase={updateTestCase}
+          onDeleteTestCase={deleteTestCase}
+        />
       </div>
     </SidebarProvider>
   )
