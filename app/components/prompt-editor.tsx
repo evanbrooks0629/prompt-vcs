@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Play, Save, ThumbsUp, ThumbsDown, Copy, RotateCcw, ChevronDown, ChevronRight, Scale } from "lucide-react"
+import { Play, Save, ThumbsUp, ThumbsDown, Copy, RotateCcw, ChevronDown, ChevronRight, Scale, Loader2, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Input } from "@/components/ui/input"
@@ -30,9 +30,10 @@ interface PromptEditorProps {
   basePrompt: Prompt | null
   version: PromptVersion | null
   onUpdateVersion: (version: PromptVersion) => void
+  onAddTestCase: (promptId: string, testCase: TestCase) => void
 }
 
-export function PromptEditor({ basePrompt, version, onUpdateVersion }: PromptEditorProps) {
+export function PromptEditor({ basePrompt, version, onUpdateVersion, onAddTestCase }: PromptEditorProps) {
   const [prompt, setPrompt] = useState("")
   const [systemMessage, setSystemMessage] = useState("")
   const [temperature, setTemperature] = useState(0.7)
@@ -52,6 +53,8 @@ export function PromptEditor({ basePrompt, version, onUpdateVersion }: PromptEdi
   const [comparisonVersion, setComparisonVersion] = useState<PromptVersion | null>(null)
   const [comparisonOutput, setComparisonOutput] = useState("")
   const [isRunningComparison, setIsRunningComparison] = useState(false)
+  const [isAddTestCaseDialogOpen, setIsAddTestCaseDialogOpen] = useState(false)
+  const [newTestCaseName, setNewTestCaseName] = useState("")
 
   const { notifications, addNotification } = useNotifications()
 
@@ -65,6 +68,9 @@ export function PromptEditor({ basePrompt, version, onUpdateVersion }: PromptEdi
       setModel(version.parameters.model)
       setCurrentOutput("")
       setTestInput("")
+      setComparisonVersion(null)
+      setComparisonOutput("")
+      setIsComparing(false)
     }
   }, [version])
 
@@ -292,18 +298,26 @@ export function PromptEditor({ basePrompt, version, onUpdateVersion }: PromptEdi
     setModel(version.parameters.model)
   }
 
-  // const addTestCase = () => {
-  //   if (!testInput.trim()) return
-  //   // This would add a saved test case for reuse
-  //   // TODO: Implement this
-  //   // should have a set of test-inputs for each prompt
-  //   addNotification({
-  //     title: "Test Case Saved",
-  //     message: "You can now reuse this input for testing.",
-  //     type: "success",
-  //     duration: 3000,
-  //   })
-  // }
+  const addTestCase = () => {
+    if (!basePrompt || !testInput.trim() || !newTestCaseName.trim()) return;
+
+    const newTestCase: TestCase = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: newTestCaseName.trim(),
+      input: testInput.trim(),
+    }
+
+    onAddTestCase(basePrompt.id, newTestCase)
+    setNewTestCaseName("")
+    setIsAddTestCaseDialogOpen(false)
+
+    addNotification({
+      title: "Test Case Added",
+      message: "New test case has been added successfully.",
+      type: "success",
+      duration: 3000,
+    })
+  }
 
   const copyInput = (input: string, index: number) => {
     navigator.clipboard.writeText(input)
@@ -631,6 +645,50 @@ export function PromptEditor({ basePrompt, version, onUpdateVersion }: PromptEdi
                       <Play className="h-4 w-4 mr-2" />
                       {isRunning ? "Running..." : "Run"}
                     </Button>
+                    {testInput.trim() && !selectedTestCase && (
+                      <Dialog open={isAddTestCaseDialogOpen} onOpenChange={setIsAddTestCaseDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button size="sm" variant="outline">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Save as Test Case
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Save as Test Case</DialogTitle>
+                            <DialogDescription>
+                              Give your test case a name to save it for future use.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                              <Label>Test Case Name</Label>
+                              <Input
+                                placeholder="e.g., Basic greeting test"
+                                value={newTestCaseName}
+                                onChange={(e) => setNewTestCaseName(e.target.value)}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Test Input</Label>
+                              <div className="p-2 bg-muted rounded-md">
+                                <ScrollArea className="h-[200px]">
+                                  <pre className="text-sm whitespace-pre-wrap">{testInput}</pre>
+                                </ScrollArea>
+                              </div>
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setIsAddTestCaseDialogOpen(false)}>
+                              Cancel
+                            </Button>
+                            <Button onClick={addTestCase} disabled={!newTestCaseName.trim()}>
+                              Save Test Case
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    )}
                   </div>
                 </div>
                 
@@ -707,6 +765,9 @@ export function PromptEditor({ basePrompt, version, onUpdateVersion }: PromptEdi
                                     className="w-full justify-start items-start text-left flex flex-col gap-1 py-2 px-3 whitespace-normal h-auto"
                                     disabled={isRunningComparison}
                                   >
+                                    {isRunningComparison && (
+                                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                    )}
                                     <div className="flex flex-col gap-1 w-full">
                                       <div className="font-medium break-words">{v.branch}</div>
                                     </div>

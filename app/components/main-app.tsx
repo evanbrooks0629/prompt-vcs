@@ -357,7 +357,8 @@ export function MainApp({ user, onLogout }: MainAppProps) {
               <PromptEditor 
                 basePrompt={selectedPrompt}
                 version={selectedVersion} 
-                onUpdateVersion={updatePromptVersion} 
+                onUpdateVersion={updatePromptVersion}
+                onAddTestCase={addTestCase}
               />
             </div>
           </div>
