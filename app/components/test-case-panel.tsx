@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ChevronUp, ChevronDown, Plus, Trash2, Edit } from "lucide-react"
 import { Prompt } from "./main-app"
+import { useSidebar } from "@/components/ui/sidebar"
+import { cn } from "@/lib/utils"
 
 export interface TestCase {
   id: string
@@ -22,6 +24,7 @@ interface TestCasePanelProps {
 }
 
 export function TestCasePanel({ prompt, onAddTestCase, onUpdateTestCase, onDeleteTestCase }: TestCasePanelProps) {
+  const { state } = useSidebar()
   const [isExpanded, setIsExpanded] = useState(false)
   const [testCases, setTestCases] = useState<TestCase[]>([])
   const [newTestName, setNewTestName] = useState("")
@@ -81,7 +84,10 @@ export function TestCasePanel({ prompt, onAddTestCase, onUpdateTestCase, onDelet
   }
 
   return (
-    <div className="fixed bottom-0 right-0 z-50 bg-background border-t shadow-lg transition-all duration-200 left-64">
+    <div className={cn(
+      "fixed bottom-0 right-0 border-t bg-background z-10",
+      state === "expanded" ? "left-[var(--sidebar-width)]" : "left-0"
+    )}>
       {/* Collapse/Expand Header */}
       <div 
         className="flex items-center justify-between px-4 py-2 cursor-pointer hover:bg-muted/50 transition-colors"
