@@ -53,6 +53,7 @@ export function PromptEditor({ basePrompt, version, onUpdateVersion, onAddTestCa
   const [comparisonVersion, setComparisonVersion] = useState<PromptVersion | null>(null)
   const [comparisonOutput, setComparisonOutput] = useState("")
   const [isRunningComparison, setIsRunningComparison] = useState(false)
+  const [comparingVersionId, setComparingVersionId] = useState<string | null>(null)
   const [isAddTestCaseDialogOpen, setIsAddTestCaseDialogOpen] = useState(false)
   const [newTestCaseName, setNewTestCaseName] = useState("")
 
@@ -362,6 +363,7 @@ export function PromptEditor({ basePrompt, version, onUpdateVersion, onAddTestCa
     }
 
     setIsRunningComparison(true)
+    setComparingVersionId(versionToCompare.id)
 
     try {
       // Get API settings from localStorage
@@ -457,6 +459,7 @@ export function PromptEditor({ basePrompt, version, onUpdateVersion, onAddTestCa
       })
     } finally {
       setIsRunningComparison(false)
+      setComparingVersionId(null)
     }
   }
 
@@ -763,9 +766,9 @@ export function PromptEditor({ basePrompt, version, onUpdateVersion, onAddTestCa
                                     variant="outline"
                                     onClick={() => runComparisonPrompt(v)}
                                     className="w-full justify-start items-start text-left flex flex-col gap-1 py-2 px-3 whitespace-normal h-auto"
-                                    disabled={isRunningComparison}
+                                    disabled={isRunningComparison && comparingVersionId === v.id}
                                   >
-                                    {isRunningComparison && (
+                                    {isRunningComparison && comparingVersionId === v.id && (
                                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                                     )}
                                     <div className="flex flex-col gap-1 w-full">

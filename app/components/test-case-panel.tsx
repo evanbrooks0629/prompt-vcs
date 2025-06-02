@@ -9,6 +9,7 @@ import { ChevronUp, ChevronDown, Plus, Trash2, Edit } from "lucide-react"
 import { Prompt } from "./main-app"
 import { useSidebar } from "@/components/ui/sidebar"
 import { cn } from "@/lib/utils"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export interface TestCase {
   id: string
@@ -94,10 +95,8 @@ export function TestCasePanel({ prompt, onAddTestCase, onUpdateTestCase, onDelet
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center gap-2">
-          <h3 className="font-semibold">Test Cases</h3>
-          <span className="text-sm text-muted-foreground">
-            ({testCases.length} test{testCases.length !== 1 ? 's' : ''})
-          </span>
+          <h3 className="font-semibold">Test Suite</h3>
+          
         </div>
         <div className="flex items-center gap-2">
           {isExpanded ? (
@@ -110,108 +109,125 @@ export function TestCasePanel({ prompt, onAddTestCase, onUpdateTestCase, onDelet
 
       {/* Expanded Content */}
       {isExpanded && (
-        <div className="max-h-96 overflow-y-auto border-t bg-background">
-          <div className="p-4 space-y-4">
-            {/* Add New Test Case */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm">Add New Test Case</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                <Input
-                  placeholder="Test case name"
-                  value={newTestName}
-                  onChange={(e) => setNewTestName(e.target.value)}
-                />
-                <Textarea
-                  placeholder="Test input"
-                  value={newTestInput}
-                  onChange={(e) => setNewTestInput(e.target.value)}
-                  rows={3}
-                />
-                <Button 
-                  onClick={addTestCase}
-                  disabled={!newTestName.trim() || !newTestInput.trim()}
-                  size="sm"
-                >
-                  <Plus className="h-3 w-3 mr-1" />
-                  Add Test Case
-                </Button>
-              </CardContent>
-            </Card>
+        <div className="h-[calc(100vh-7rem)] overflow-y-auto border-t bg-background">
+          <Tabs defaultValue="test-cases" className="h-full flex flex-col">
+            <TabsList className="mx-4 mt-4">
+              <TabsTrigger value="test-cases">Test Cases</TabsTrigger>
+              <TabsTrigger value="experiments">Experiments</TabsTrigger>
+              <TabsTrigger value="ai-enhancer">AI Enhancer</TabsTrigger>
+            </TabsList>
 
-            {/* Existing Test Cases */}
-            {testCases.length > 0 && (
-              <div className="space-y-2">
-                <h4 className="text-sm font-medium">Test Cases</h4>
-                {testCases.map((testCase) => (
-                  <Card key={testCase.id} className="bg-muted/30">
-                    <CardContent className="p-3">
-                      {editingId === testCase.id ? (
-                        <div className="space-y-3">
-                          <Input
-                            value={editName}
-                            onChange={(e) => setEditName(e.target.value)}
-                            placeholder="Test case name"
-                          />
-                          <Textarea
-                            value={editInput}
-                            onChange={(e) => setEditInput(e.target.value)}
-                            placeholder="Test input"
-                            rows={3}
-                          />
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              onClick={saveEdit}
-                              disabled={!editName.trim() || !editInput.trim()}
-                            >
-                              Save
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={cancelEdit}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="flex-1 min-w-0">
-                            <h5 className="font-medium text-sm mb-1">{testCase.name}</h5>
-                            <p className="text-xs text-muted-foreground break-words">
-                              {testCase.input}
-                            </p>
-                          </div>
-                          <div className="flex gap-1 flex-shrink-0">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => startEditing(testCase)}
-                              className="h-7 px-2"
-                            >
-                              <Edit className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => deleteTestCase(testCase.id)}
-                              className="h-7 px-2 text-destructive hover:text-destructive"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
+            <TabsContent value="test-cases" className="flex-1 overflow-hidden m-4 mt-2">
+              <div className="space-y-4">
+                {/* Add New Test Case */}
+                <Card>
+                  <CardHeader className="pb-3">
+                    <CardTitle className="text-sm">Add New Test Case</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <Input
+                      placeholder="Test case name"
+                      value={newTestName}
+                      onChange={(e) => setNewTestName(e.target.value)}
+                    />
+                    <Textarea
+                      placeholder="Test input"
+                      value={newTestInput}
+                      onChange={(e) => setNewTestInput(e.target.value)}
+                      rows={3}
+                    />
+                    <Button 
+                      onClick={addTestCase}
+                      disabled={!newTestName.trim() || !newTestInput.trim()}
+                      size="sm"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add Test Case
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                {/* Existing Test Cases */}
+                {testCases.length > 0 && (
+                  <div className="space-y-2">
+                    <h4 className="text-sm font-medium">Test Cases ({testCases.length})</h4>
+                    {testCases.map((testCase) => (
+                      <Card key={testCase.id} className="bg-muted/30">
+                        <CardContent className="p-3">
+                          {editingId === testCase.id ? (
+                            <div className="space-y-3">
+                              <Input
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                placeholder="Test case name"
+                              />
+                              <Textarea
+                                value={editInput}
+                                onChange={(e) => setEditInput(e.target.value)}
+                                placeholder="Test input"
+                                rows={3}
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={saveEdit}
+                                  disabled={!editName.trim() || !editInput.trim()}
+                                >
+                                  Save
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={cancelEdit}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <h5 className="font-medium text-sm mb-1">{testCase.name}</h5>
+                                <p className="text-xs text-muted-foreground break-words">
+                                  {testCase.input}
+                                </p>
+                              </div>
+                              <div className="flex gap-1 flex-shrink-0">
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => startEditing(testCase)}
+                                  className="h-7 px-2"
+                                >
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => deleteTestCase(testCase.id)}
+                                  className="h-7 px-2 text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </div>
-            )}
+            </TabsContent>
 
-          </div>
+            <TabsContent value="experiments" className="flex-1 overflow-hidden m-4 mt-2">
+              {/* Content for Experiments tab will go here */}
+            </TabsContent>
+
+            <TabsContent value="ai-enhancer" className="flex-1 overflow-hidden m-4 mt-2">
+              {/* Content for AI Enhancer tab will go here */}
+            </TabsContent>
+          </Tabs>
         </div>
       )}
     </div>
