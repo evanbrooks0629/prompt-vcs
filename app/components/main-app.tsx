@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Sidebar } from "./sidebar"
 import { TopBar } from "./top-bar"
 import { VersionTree } from "./version-tree"
@@ -8,11 +8,47 @@ import { PromptEditor } from "./prompt-editor"
 import { Settings } from "./settings"
 import { UserData } from "./google-login"
 import { SidebarProvider } from "@/components/ui/sidebar"
-import { TestCasePanel, TestCase } from "./test-case-panel"
+import { TestCasePanel } from "./test-case-panel"
 
 interface MainAppProps {
   user: UserData | null
   onLogout: () => void
+}
+
+export interface Dataset {
+  id: string
+  name: string
+  data: Record<string, string>[]
+  columns: string[]
+}
+
+export interface ExperimentRun {
+  id: string
+  results: ExperimentResult[]
+  status: "pending" | "running" | "completed" | "failed"
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface Experiment {
+  id: string
+  name: string
+  datasetId: string
+  promptId: string
+  promptVersionId: string
+  judgePrompt: string
+  runs: ExperimentRun[]
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface ExperimentResult {
+  id: string
+  input: Record<string, string>
+  output: string
+  judgeOutput: string
+  rating: "pass" | "fail" | "pending"
+  timestamp: Date
 }
 
 export interface Prompt {
@@ -21,7 +57,8 @@ export interface Prompt {
   lastAccessed: Date
   versions: PromptVersion[]
   currentBranch: string
-  testCases: TestCase[]
+  datasets: Dataset[]
+  experiments: Experiment[]
 }
 
 export interface PromptVersion {
@@ -54,6 +91,13 @@ export function MainApp({ user, onLogout }: MainAppProps) {
   const [selectedVersion, setSelectedVersion] = useState<PromptVersion | null>(null)
   const [showSettings, setShowSettings] = useState(false)
 
+  const savePrompts = useCallback((updatedPrompts: Prompt[]) => {
+    if (!user) return
+    
+    setPrompts(updatedPrompts)
+    localStorage.setItem(`prompts_${user.id}`, JSON.stringify(updatedPrompts))
+  }, [user])
+
   useEffect(() => {
     // Only load prompts if user exists
     if (!user) return
@@ -74,17 +118,27 @@ export function MainApp({ user, onLogout }: MainAppProps) {
             timestamp: new Date(result.timestamp),
           })),
         })),
+        // Convert experiment dates
+        experiments: prompt.experiments?.map((experiment: Experiment) => ({
+          ...experiment,
+          createdAt: new Date(experiment.createdAt),
+          updatedAt: new Date(experiment.updatedAt),
+          runs: experiment.runs?.map((run: ExperimentRun) => ({
+            ...run,
+            createdAt: new Date(run.createdAt),
+            updatedAt: new Date(run.updatedAt),
+            results: run.results?.map((result: ExperimentResult) => ({
+              ...result,
+              timestamp: new Date(result.timestamp),
+            })),
+          })),
+        })) || [],
       }))
+      
+      // Datasets and experiments are already part of the prompt objects, so just set the prompts
       setPrompts(promptsWithDates)
     }
-  }, [user?.id])
-
-  const savePrompts = (updatedPrompts: Prompt[]) => {
-    if (!user) return
-    
-    setPrompts(updatedPrompts)
-    localStorage.setItem(`prompts_${user.id}`, JSON.stringify(updatedPrompts))
-  }
+  }, [user?.id, savePrompts])
 
   const createNewPrompt = (name: string) => {
     const newPrompt: Prompt = {
@@ -108,7 +162,8 @@ export function MainApp({ user, onLogout }: MainAppProps) {
           timestamp: new Date(),
         },
       ],
-      testCases: []
+      datasets: [],
+      experiments: []
     }
 
     const updatedPrompts = [...prompts, newPrompt]
@@ -238,18 +293,13 @@ export function MainApp({ user, onLogout }: MainAppProps) {
     }
   }
 
-  const addTestCase = (promptId: string, updatedTestCase: TestCase) => {
-    const newTestCase: TestCase = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: updatedTestCase.name,
-      input: updatedTestCase.input
-    }
-
+  // Dataset functions
+  const addDataset = (promptId: string, dataset: Dataset) => {
     const updatedPrompts = prompts.map((prompt) => {
       if (prompt.id === promptId) {
         return {
           ...prompt,
-          testCases: [...prompt.testCases, newTestCase],
+          datasets: [...prompt.datasets, dataset],
           lastAccessed: new Date(),
         }
       }
@@ -258,22 +308,19 @@ export function MainApp({ user, onLogout }: MainAppProps) {
 
     savePrompts(updatedPrompts)
     
-    // Update selected prompt if it's the one being modified
     if (selectedPrompt && selectedPrompt.id === promptId) {
       const updatedPrompt = updatedPrompts.find(p => p.id === promptId)!
       setSelectedPrompt(updatedPrompt)
     }
   }
 
-  const updateTestCase = (promptId: string, updatedTestCase: TestCase) => {
+  const updateDataset = (promptId: string, updatedDataset: Dataset) => {
     const updatedPrompts = prompts.map((prompt) => {
       if (prompt.id === promptId) {
         return {
           ...prompt,
-          testCases: prompt.testCases.map((testCase) =>
-            testCase.id === updatedTestCase.id
-              ? updatedTestCase
-              : testCase
+          datasets: prompt.datasets.map((dataset) =>
+            dataset.id === updatedDataset.id ? updatedDataset : dataset
           ),
           lastAccessed: new Date(),
         }
@@ -283,19 +330,18 @@ export function MainApp({ user, onLogout }: MainAppProps) {
 
     savePrompts(updatedPrompts)
     
-    // Update selected prompt if it's the one being modified
     if (selectedPrompt && selectedPrompt.id === promptId) {
       const updatedPrompt = updatedPrompts.find(p => p.id === promptId)!
       setSelectedPrompt(updatedPrompt)
     }
   }
 
-  const deleteTestCase = (promptId: string, selectedTestCase: TestCase) => {
+  const deleteDataset = (promptId: string, datasetId: string) => {
     const updatedPrompts = prompts.map((prompt) => {
       if (prompt.id === promptId) {
         return {
           ...prompt,
-          testCases: prompt.testCases.filter((testCase) => testCase.id !== selectedTestCase.id),
+          datasets: prompt.datasets.filter((dataset) => dataset.id !== datasetId),
           lastAccessed: new Date(),
         }
       }
@@ -304,7 +350,69 @@ export function MainApp({ user, onLogout }: MainAppProps) {
 
     savePrompts(updatedPrompts)
     
-    // Update selected prompt if it's the one being modified
+    if (selectedPrompt && selectedPrompt.id === promptId) {
+      const updatedPrompt = updatedPrompts.find(p => p.id === promptId)!
+      setSelectedPrompt(updatedPrompt)
+    }
+  }
+
+  // Experiment functions
+  const addExperiment = (promptId: string, experiment: Experiment) => {
+    const updatedPrompts = prompts.map((prompt) => {
+      if (prompt.id === promptId) {
+        return {
+          ...prompt,
+          experiments: [...prompt.experiments, experiment],
+          lastAccessed: new Date(),
+        }
+      }
+      return prompt
+    })
+
+    savePrompts(updatedPrompts)
+    
+    if (selectedPrompt && selectedPrompt.id === promptId) {
+      const updatedPrompt = updatedPrompts.find(p => p.id === promptId)!
+      setSelectedPrompt(updatedPrompt)
+    }
+  }
+
+  const updateExperiment = (promptId: string, updatedExperiment: Experiment) => {
+    const updatedPrompts = prompts.map((prompt) => {
+      if (prompt.id === promptId) {
+        return {
+          ...prompt,
+          experiments: prompt.experiments.map((experiment) =>
+            experiment.id === updatedExperiment.id ? updatedExperiment : experiment
+          ),
+          lastAccessed: new Date(),
+        }
+      }
+      return prompt
+    })
+
+    savePrompts(updatedPrompts)
+    
+    if (selectedPrompt && selectedPrompt.id === promptId) {
+      const updatedPrompt = updatedPrompts.find(p => p.id === promptId)!
+      setSelectedPrompt(updatedPrompt)
+    }
+  }
+
+  const deleteExperiment = (promptId: string, experimentId: string) => {
+    const updatedPrompts = prompts.map((prompt) => {
+      if (prompt.id === promptId) {
+        return {
+          ...prompt,
+          experiments: prompt.experiments.filter((experiment) => experiment.id !== experimentId),
+          lastAccessed: new Date(),
+        }
+      }
+      return prompt
+    })
+
+    savePrompts(updatedPrompts)
+    
     if (selectedPrompt && selectedPrompt.id === promptId) {
       const updatedPrompt = updatedPrompts.find(p => p.id === promptId)!
       setSelectedPrompt(updatedPrompt)
@@ -355,10 +463,9 @@ export function MainApp({ user, onLogout }: MainAppProps) {
 
             <div className="flex-1 min-w-0 mb-15">
               <PromptEditor 
-                basePrompt={selectedPrompt}
+                // basePrompt={selectedPrompt}
                 version={selectedVersion} 
                 onUpdateVersion={updatePromptVersion}
-                onAddTestCase={addTestCase}
               />
             </div>
           </div>
@@ -367,9 +474,13 @@ export function MainApp({ user, onLogout }: MainAppProps) {
         {/* Test Case Panel - overlays at the bottom */}
         <TestCasePanel 
           prompt={selectedPrompt} 
-          onAddTestCase={addTestCase}
-          onUpdateTestCase={updateTestCase}
-          onDeleteTestCase={deleteTestCase}
+          prompts={prompts}
+          onAddDataset={addDataset}
+          onUpdateDataset={updateDataset}
+          onDeleteDataset={deleteDataset}
+          onAddExperiment={addExperiment}
+          onUpdateExperiment={updateExperiment}
+          onDeleteExperiment={deleteExperiment}
         />
       </div>
     </SidebarProvider>

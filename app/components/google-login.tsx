@@ -65,10 +65,15 @@ export function GoogleLogin({ onLogin }: GoogleLoginProps) {
       
       <Card className="w-full max-w-md relative z-10">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl font-bold">
-            PromptVCS
-          </CardTitle>
-          <CardDescription>Version control for your AI prompts</CardDescription>
+          <div className="flex flex-col items-center gap-3 mb-4">
+            <img src="/JudgementDay.png" alt="JudgementDay" className="h-16 w-16" />
+            <div>
+              <CardTitle className="text-2xl font-bold">
+                JudgementDay
+              </CardTitle>
+              <CardDescription>Version control for your AI prompts</CardDescription>
+            </div>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">

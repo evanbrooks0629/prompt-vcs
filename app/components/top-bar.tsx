@@ -51,7 +51,7 @@ export function TopBar({ selectedPrompt, onCreatePrompt, onDeletePrompt }: TopBa
         <SidebarTrigger />
 
         <div className="flex-1">
-          <h1 className="text-lg font-semibold">{selectedPrompt ? selectedPrompt.name : "PromptVCS"}</h1>
+          <h1 className="text-lg font-semibold">{selectedPrompt ? selectedPrompt.name : "JudgementDay"}</h1>
           {selectedPrompt && (
             <p className="text-sm text-muted-foreground">Current branch: {selectedPrompt.currentBranch}</p>
           )}

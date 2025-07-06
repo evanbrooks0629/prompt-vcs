@@ -31,6 +31,16 @@ export function Sidebar({ prompts, selectedPrompt, onSelectPrompt, user, onSetti
   return (
     <SidebarComponent className="w-">
       <SidebarHeader className="p-4">
+        {/* App Branding */}
+        <div className="flex items-center gap-3 mb-4 pb-4 border-b">
+          <img src="/JudgementDay.png" alt="JudgementDay" className="h-8 w-8" />
+          <div className="flex-1 min-w-0">
+            <h1 className="text-lg font-bold">JudgementDay</h1>
+            <p className="text-xs text-muted-foreground">AI Prompt Version Control</p>
+          </div>
+        </div>
+        
+        {/* User Info */}
         <div className="flex items-center gap-3">
           <Avatar className="h-8 w-8">
             <AvatarImage src={user.picture || "/placeholder.svg"} alt={user.name} />
